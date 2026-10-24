@@ -1,0 +1,69 @@
+name: ast-grep test
+
+on:
+  pull_request:
+    paths:
+      - actions/ast-grep/**
+      - tests/ast-grep/**
+      - .github/workflows/test-ast-grep.yml
+  push:
+    branches: [main]
+    paths:
+      - actions/ast-grep/**
+      - tests/ast-grep/**
+      - .github/workflows/test-ast-grep.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  action:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Clean code passes
+        uses: ./actions/ast-grep
+        with:
+          config: tests/ast-grep/sgconfig.yml
+          paths: tests/ast-grep/clean
+      - name: A config without rule tests scans
+        uses: ./actions/ast-grep
+        with:
+          config: tests/ast-grep/no-tests.yml
+          paths: tests/ast-grep/clean
+      - name: A finding fails
+        id: finding
+        continue-on-error: true
+        uses: ./actions/ast-grep
+        with:
+          config: tests/ast-grep/sgconfig.yml
+          paths: tests/ast-grep/finding
+      - name: A path outside the repository is refused
+        id: outside
+        continue-on-error: true
+        uses: ./actions/ast-grep
+        with:
+          config: tests/ast-grep/sgconfig.yml
+          paths: ../
+      - name: Link out of the repository
+        run: ln -s "$RUNNER_TEMP" tests/ast-grep/link-out
+      - name: A symlink leading outside the repository is refused
+        id: link
+        continue-on-error: true
+        uses: ./actions/ast-grep
+        with:
+          config: tests/ast-grep/sgconfig.yml
+          paths: tests/ast-grep/link-out
+      - name: Check the outcomes
+        env:
+          FINDING: ${{ steps.finding.outcome }}
+          OUTSIDE: ${{ steps.outside.outcome }}
+          LINK: ${{ steps.link.outcome }}
+        run: |
+          test "$FINDING" = failure
+          test "$OUTSIDE" = failure
+          test "$LINK" = failure

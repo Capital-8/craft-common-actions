@@ -1,0 +1,49 @@
+name: "ast-grep"
+
+# Structural lint for the craft apps: the caller's ast-grep rule tests, then a scan with its
+# sgconfig.yml, so CI and a local `ast-grep scan` read the same config. It parses without building,
+# so it finishes in seconds and can run on every pull request next to the gate.
+on:
+  workflow_call:
+    inputs:
+      config:
+        description: "The repository's sgconfig.yml (its ruleDirs, and testConfigs if any), relative to the repository root"
+        type: string
+        required: false
+        default: "sgconfig.yml"
+      paths:
+        description: "Paths to scan, relative to the repository root, separated by spaces or newlines"
+        type: string
+        required: false
+        default: "."
+      version:
+        description: "Version of ast-grep to install"
+        type: string
+        required: false
+        default: "0.50.0"
+      sha256:
+        description: "SHA256 of that version's x86_64 Linux release zip, when the action has none for it"
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: ast-grep
+        # The action from this workflow's own repository and commit, so a caller that pins the
+        # workflow (or calls a fork's) runs the action that goes with it.
+        uses: $/actions/ast-grep
+        with:
+          config: ${{ inputs.config }}
+          paths: ${{ inputs.paths }}
+          version: ${{ inputs.version }}
+          sha256: ${{ inputs.sha256 }}

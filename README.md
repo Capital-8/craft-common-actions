@@ -404,6 +404,38 @@ jobs:
         cargo test --workspace --locked
 ```
 
+### 7. `ast-grep.yml`
+
+Structural lint with [ast-grep](https://ast-grep.github.io/), driven by the app's own
+[`sgconfig.yml`](https://ast-grep.github.io/reference/sgconfig.html): CI and a local
+`ast-grep scan` read the same rules. The rule tests in its `testConfigs` run first
+(`ast-grep test --skip-snapshot-tests`), so a rule that stopped matching what it should fails
+before it judges the code. The scan parses without building, so it takes seconds and can run on
+every pull request next to the gate.
+
+Findings show up as annotations on the pull request; a failing scan also lists every finding as
+`file:line` in the log, since GitHub shows only the first few annotations of a step. An
+error-severity finding fails the job. ast-grep is pinned and its download checked against a
+SHA256 kept in the action, since its releases publish none; pass `sha256` with another `version`.
+
+#### Caller Example:
+```yaml
+jobs:
+  ast-grep:
+    uses: storytold/craft-common-actions/.github/workflows/ast-grep.yml@main
+```
+
+With the config and rules elsewhere, scanning only some paths:
+
+```yaml
+jobs:
+  ast-grep:
+    uses: storytold/craft-common-actions/.github/workflows/ast-grep.yml@main
+    with:
+      config: lint/sgconfig.yml
+      paths: apps crates
+```
+
 ## Composite Actions
 
 Individual actions are also available for composing custom pipelines:
@@ -425,6 +457,7 @@ Individual actions are also available for composing custom pipelines:
 - `actions/install-trunk`: Installs Trunk for WebAssembly builds.
 - `actions/draft-release`: Collects artifacts, calculates SHA256 checksums, and publishes/updates draft GitHub release.
 - `actions/packaging-lint`: Steps for packaging linter.
+- `actions/ast-grep`: Installs a pinned ast-grep, runs the caller's rule tests and scans with its `sgconfig.yml` (see `ast-grep.yml`).
 
 ## Storytold Organization Hosting
 

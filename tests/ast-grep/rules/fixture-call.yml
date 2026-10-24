@@ -1,0 +1,6 @@
+id: fixture-call
+language: rust
+severity: error
+message: fixture finding
+rule:
+  pattern: forbidden_in_fixture($$$)

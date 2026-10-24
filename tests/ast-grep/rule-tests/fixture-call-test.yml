@@ -1,0 +1,5 @@
+id: fixture-call
+valid:
+  - allowed_in_fixture(1)
+invalid:
+  - forbidden_in_fixture(1)

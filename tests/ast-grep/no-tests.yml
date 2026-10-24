@@ -1,0 +1,3 @@
+# Like sgconfig.yml without testConfigs: the action still scans.
+ruleDirs:
+  - rules

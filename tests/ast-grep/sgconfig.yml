@@ -1,0 +1,6 @@
+# A fixture for test-ast-grep.yml, not a rule set: one rule, its test, and code with and without
+# a finding.
+ruleDirs:
+  - rules
+testConfigs:
+  - testDir: rule-tests

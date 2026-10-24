@@ -1,0 +1,88 @@
+name: "ast-grep"
+description: "Runs the caller's ast-grep rule tests and scan with a pinned, checksummed ast-grep"
+
+inputs:
+  config:
+    description: "The repository's sgconfig.yml (its ruleDirs, and testConfigs if any), relative to the repository root"
+    required: false
+    default: "sgconfig.yml"
+  paths:
+    description: "Paths to scan, relative to the repository root, separated by spaces or newlines"
+    required: false
+    default: "."
+  version:
+    description: "Version of ast-grep to install"
+    required: false
+    default: "0.50.0"
+  sha256:
+    description: "SHA256 of the x86_64 Linux release zip; required for a version this action has no checksum for (ast-grep publishes none)"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install ast-grep
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        SHA256: ${{ inputs.sha256 }}
+      run: |
+        set -euo pipefail
+        if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "::error::invalid ast-grep version '$VERSION'"
+          exit 1
+        fi
+        case "$VERSION" in
+          "0.50.0") expected="0fd3f489639abb8465a914b74b8779171577582318d8a940d00399f59dba81c5" ;;
+          *) expected="$SHA256" ;;
+        esac
+        if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
+          echo "::error::ast-grep $VERSION needs the sha256 input: its release publishes no checksums"
+          exit 1
+        fi
+        zip="$RUNNER_TEMP/ast-grep.zip"
+        curl --proto '=https' --proto-redir =https -fsSL -o "$zip" \
+          "https://github.com/ast-grep/ast-grep/releases/download/${VERSION}/app-x86_64-unknown-linux-gnu.zip"
+        echo "$expected  $zip" | sha256sum -c -
+        bin="$RUNNER_TEMP/ast-grep-bin"
+        mkdir -p "$bin"
+        unzip -q -o "$zip" ast-grep -d "$bin"
+        echo "$bin" >> "$GITHUB_PATH"
+        "$bin/ast-grep" --version
+
+    - name: Rule tests and scan
+      shell: bash
+      env:
+        CONFIG: ${{ inputs.config }}
+        PATHS: ${{ inputs.paths }}
+      run: |
+        set -euo pipefail
+        # The path as given and, through any symlink, where it leads must both stay in the checkout.
+        root=$(pwd -P)
+        inside() {
+          [[ "$1" != /* && "/$1/" != */../* ]] || return 1
+          local real
+          real=$(realpath -e -- "$1" 2>/dev/null) || return 1
+          [[ "$real" == "$root" || "$real" == "$root"/* ]]
+        }
+        if ! inside "$CONFIG" || [ ! -f "$CONFIG" ]; then
+          echo "::error::config: '$CONFIG' is not a file inside the repository"
+          exit 1
+        fi
+        read -r -d '' -a paths <<< "$PATHS" || true
+        for p in "${paths[@]}"; do
+          if ! inside "$p" || [ ! -e "$p" ]; then
+            echo "::error::paths: '$p' is not inside the repository"
+            exit 1
+          fi
+        done
+        # Rules are checked against their tests before they judge the code (with no testConfigs
+        # there are none to run).
+        ast-grep test --config "$CONFIG" --skip-snapshot-tests
+        # GitHub shows only the first few annotations of a step, so a failing scan also prints
+        # every finding as file:line in the log.
+        if ! ast-grep scan --config "$CONFIG" --format github "${paths[@]}"; then
+          ast-grep scan --config "$CONFIG" --report-style short "${paths[@]}" || true
+          exit 1
+        fi
