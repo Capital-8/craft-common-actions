@@ -88,6 +88,10 @@ jobs:
         uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
         with:
           ref: ${{ inputs.fonts-ref }}
+      - name: Require requested craft-fonts
+        if: inputs.fonts-ref != ''
+        shell: bash
+        run: echo "CRAFT_FONTS_REQUIRED=1" >> "$GITHUB_ENV"
       - name: Free disk space
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
       - name: Install Linux build dependencies
@@ -116,7 +120,6 @@ jobs:
       - name: Build instrumented test archive
         env:
           CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
-          CRAFT_FONTS_REQUIRED: ${{ inputs.fonts-ref != '' && '1' || '' }}
           CARGO_TERM_COLOR: always
           # Coverage comes from instrumentation, not DWARF; debuginfo is most of target/.
           CARGO_PROFILE_DEV_DEBUG: "0"
@@ -153,6 +156,10 @@ jobs:
         uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
         with:
           ref: ${{ inputs.fonts-ref }}
+      - name: Require requested craft-fonts
+        if: inputs.fonts-ref != ''
+        shell: bash
+        run: echo "CRAFT_FONTS_REQUIRED=1" >> "$GITHUB_ENV"
       - name: Install Linux build dependencies
         uses: storytold/craft-common-actions/actions/install-apt-packages@main
         with:
@@ -178,7 +185,6 @@ jobs:
         continue-on-error: true
         env:
           CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
-          CRAFT_FONTS_REQUIRED: ${{ inputs.fonts-ref != '' && '1' || '' }}
           # Each instrumented binary writes its profile here; the scan job merges them.
           LLVM_PROFILE_FILE: ${{ github.workspace }}/profraw/shard-${{ matrix.shard }}-%p-%m.profraw
         run: |
@@ -234,6 +240,10 @@ jobs:
         uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
         with:
           ref: ${{ inputs.fonts-ref }}
+      - name: Require requested craft-fonts
+        if: inputs.fonts-ref != '' && steps.token.outputs.available == 'true' && inputs.shards <= 1
+        shell: bash
+        run: echo "CRAFT_FONTS_REQUIRED=1" >> "$GITHUB_ENV"
       - name: Free disk space
         # The instrumented workspace build overflows the ~14 GB free on a stock runner.
         if: steps.token.outputs.available == 'true' && hashFiles('Cargo.toml') != '' && inputs.shards <= 1
@@ -273,7 +283,6 @@ jobs:
         env:
           CARGO_TERM_COLOR: always
           CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
-          CRAFT_FONTS_REQUIRED: ${{ inputs.fonts-ref != '' && '1' || '' }}
           # Coverage comes from instrumentation, not DWARF; debuginfo is most of target/.
           CARGO_PROFILE_DEV_DEBUG: "0"
         run: >

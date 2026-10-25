@@ -96,8 +96,11 @@ class SonarCloudTests(unittest.TestCase):
             self.assertLess(steps.index(checkout), steps.index(runner))
             self.assertEqual(checkout['with']['ref'], '${{ inputs.fonts-ref }}')
             self.assertEqual(runner['env']['CRAFT_FONTS_DIR'], '${{ github.workspace }}/craft-fonts')
-            self.assertEqual(runner['env']['CRAFT_FONTS_REQUIRED'],
-                             "${{ inputs.fonts-ref != '' && '1' || '' }}")
+            self.assertNotIn('CRAFT_FONTS_REQUIRED', runner['env'])
+            required = next(step for step in steps if step.get('name') == 'Require requested craft-fonts')
+            self.assertLess(steps.index(required), steps.index(runner))
+            self.assertTrue(required['if'].startswith("inputs.fonts-ref != ''"))
+            self.assertEqual(required['run'], 'echo "CRAFT_FONTS_REQUIRED=1" >> "$GITHUB_ENV"')
 
     def test_pdf_fixture_setup_runs_before_both_test_runners(self):
         workflow = yaml.load(
