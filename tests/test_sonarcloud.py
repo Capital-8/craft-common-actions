@@ -105,6 +105,16 @@ class SonarCloudTests(unittest.TestCase):
         self.assertIn('--archive-file archive/nextest-archive.tar.zst', tests['run'])
         self.assertEqual(workflow['jobs']['coverage']['needs'], ['plan', 'build'])
 
+    def test_sharded_scan_steps_only_run_when_the_plan_runs(self):
+        workflow = yaml.load(
+            (ROOT / '.github/workflows/sonarcloud.yml').read_text(), Loader=yaml.BaseLoader)
+        sharded = [step for step in workflow['jobs']['sonarcloud']['steps']
+                   if 'inputs.shards > 1' in step.get('if', '')]
+        self.assertGreaterEqual(len(sharded), 4)
+        for step in sharded:
+            with self.subTest(step=step.get('name')):
+                self.assertIn("hashFiles('Cargo.toml') != ''", step['if'])
+
     def test_scan_fails_when_a_prerequisite_job_failed(self):
         workflow = yaml.load(
             (ROOT / '.github/workflows/sonarcloud.yml').read_text(), Loader=yaml.BaseLoader)
