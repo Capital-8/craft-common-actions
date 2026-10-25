@@ -88,7 +88,7 @@ class SonarCloudTests(unittest.TestCase):
         workflow = yaml.load(
             (ROOT / '.github/workflows/sonarcloud.yml').read_text(), Loader=yaml.BaseLoader)
         shards = workflow['on']['workflow_call']['inputs']['shards']
-        self.assertEqual(shards['default'], '1')
+        self.assertEqual(shards['default'], '4')
         coverage = next(step for step in self.steps if step.get('id') == 'coverage')
         self.assertIn('inputs.shards <= 1', coverage['if'])
         self.assertEqual(workflow['jobs']['plan']['if'], 'inputs.shards > 1')

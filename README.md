@@ -494,12 +494,12 @@ changes the job's time budget without dropping tests or coverage. Pass
 `fonts-ref` at the app's tested craft-fonts commit when its tests need those
 fonts. The scan still needs to finish and pass its quality gate.
 
-Large workspaces can instead pass `shards: 4` (or another count) to split the
-coverage run across parallel `cargo nextest` partitions; each shard uploads its
-own lcov report and the scan job merges them with `lcov`. The default of `1`
-keeps the single `cargo llvm-cov` job. Sharded runs skip doctests, because
-nextest does not run them, and every shard still compiles the whole workspace,
-so more shards stop helping once compile time dominates.
+Workspaces split the coverage run across four parallel `cargo nextest`
+partitions by default. Pass `shards: 1` to keep the single `cargo llvm-cov`
+job, or another count to change the split. Each shard uploads its own lcov
+report and the scan job merges them with `lcov`. Sharded runs skip doctests,
+because nextest does not run them, and every shard still compiles the whole
+workspace, so more shards stop helping once compile time dominates.
 
 The new limits leave headroom over sampled Craft app job timings; the existing
 FreeBSD and ARM64 limits are retained. Treat these as initial limits, review

@@ -21,10 +21,10 @@ on:
       shards:
         description: >-
           Split the Rust coverage run into this many parallel cargo-nextest partitions
-          (1 keeps the single `cargo llvm-cov` job). Doctests are not run when sharded.
+          (1 keeps the single `cargo llvm-cov` job; default 4). Doctests are not run when sharded.
         type: number
         required: false
-        default: 1
+        default: 4
     secrets:
       SONAR_TOKEN:
         description: "SonarCloud analysis token"
