@@ -148,14 +148,22 @@ if [[ "${#metainfos[@]}" -gt 0 ]]; then
 fi
 
 # Format SPDX license expression into Arch license array
+license_bad_chars='[|;&`$<>()]'
+[[ ! "$license" =~ $license_bad_chars ]] || die "invalid characters in license expression: '$license'"
+[[ ! "$license" =~ ^[[:space:]]*(OR|AND)[[:space:]]*$ ]] || die "empty license identifier in '$license'"
+[[ ! "$license" =~ ^[[:space:]]*(OR|AND)[[:space:]] ]] || die "leading operator in license expression: '$license'"
+[[ ! "$license" =~ [[:space:]](OR|AND)[[:space:]]*$ ]] || die "trailing operator in license expression: '$license'"
+[[ ! "$license" =~ (OR|AND)[[:space:]]+(OR|AND) ]] || die "consecutive operators in license expression: '$license'"
+
 license_formatted=()
 IFS='|' read -ra parts <<< "$(sed -E 's/ (OR|AND) /|/g' <<< "$license")"
 for part in "${parts[@]}"; do
   part="$(echo "$part" | xargs)"
   [[ -n "$part" ]] || die "empty license component in '$license'"
   [[ "$part" =~ ^[A-Za-z0-9.+-]+$ ]] || die "invalid license identifier: '$part'"
-  license_formatted+=("'$part'")
+  license_formatted+=("$(printf '%q' "$part")")
 done
+[[ "${#license_formatted[@]}" -gt 0 ]] || die "empty license expression"
 license_str="${license_formatted[*]}"
 
 # Create makepkg.conf override
@@ -173,10 +181,10 @@ EOF
 cat > "$work/PKGBUILD" <<EOF
 # Maintainer: Storyteller Authors
 pkgname=$(printf '%q' "$pkgname")
-pkgver='$pkgver'
-pkgrel='$pkgrel'
+pkgver=$(printf '%q' "$pkgver")
+pkgrel=$(printf '%q' "$pkgrel")
 pkgdesc=$(printf '%q' "$pkgdesc")
-arch=('$arch')
+arch=($(printf '%q' "$arch"))
 url=$(printf '%q' "$url")
 license=($license_str)
 depends=('glibc' 'gcc-libs' 'hicolor-icon-theme' 'libxkbcommon' 'vulkan-icd-loader')
@@ -195,7 +203,7 @@ optdepends=(
   'xdg-desktop-portal: native desktop integration and file dialogs'
   'cups: printing support'
 )
-provides=("$(printf '%q' "$app")=\$pkgver-\$pkgrel")
+provides=($(printf '%q' "$app=$pkgver-$pkgrel"))
 conflicts=($(printf '%q' "$app") $(printf '%q' "$app-bin") $(printf '%q' "$app-git"))
 options=('!strip' '!debug')
 
@@ -218,8 +226,16 @@ package() {
     if [ -L "\$d" ]; then echo "error: refusing symlinked directory \$d" >&2; return 1; fi
   done
   mkdir -p "\$lic_dir"
+  if [ -L "\$lic_dir" ]; then echo "error: refusing symlinked directory \$lic_dir" >&2; return 1; fi
+  local pkgdir_real lic_real
+  pkgdir_real="\$(realpath -- "\$pkgdir")"
+  lic_real="\$(realpath -m -- "\$lic_dir")"
+  case "\$lic_real" in
+    "\$pkgdir_real"/usr/share/licenses/*) ;;
+    *) echo "error: refusing license directory resolving outside pkgdir: \$lic_real" >&2; return 1 ;;
+  esac
   if [ -d "\$pkgdir/usr/share/doc" ]; then
-    find "\$pkgdir/usr/share/doc" -maxdepth 2 -type f \( -iname "*license*" -o -iname "*notice*" -o -iname "*copying*" \) -exec cp -t "\$lic_dir" {} + 2>/dev/null || true
+    find "\$pkgdir/usr/share/doc" -maxdepth 2 -type f \( -iname "*license*" -o -iname "*notice*" -o -iname "*copying*" \) -exec cp -P -t "\$lic_dir" {} + 2>/dev/null || true
   fi
 }
 EOF
