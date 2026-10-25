@@ -115,6 +115,34 @@ class SonarCloudTests(unittest.TestCase):
             with self.subTest(step=step.get('name')):
                 self.assertIn("hashFiles('Cargo.toml') != ''", step['if'])
 
+    def test_shard_count_is_a_whole_number_within_the_matrix_limit(self):
+        workflow = yaml.load(
+            (ROOT / '.github/workflows/sonarcloud.yml').read_text(), Loader=yaml.BaseLoader)
+        plan = next(step for step in workflow['jobs']['plan']['steps'] if step.get('id') == 'matrix')
+        result, output = self.run_step(plan, SHARDS='2.5', SONAR_TOKEN='t')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('whole number', result.stdout)
+        result, output = self.run_step(plan, SHARDS='257', SONAR_TOKEN='t')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('256', result.stdout)
+        result, output = self.run_step(plan, SHARDS='3', SONAR_TOKEN='t')
+        # The step runs without a Cargo.toml, so there is no workspace to shard.
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(output, 'matrix={"shard":[]}\n')
+
+    def test_merge_uses_the_archives_toolchain_and_test_binaries_only(self):
+        workflow = yaml.load(
+            (ROOT / '.github/workflows/sonarcloud.yml').read_text(), Loader=yaml.BaseLoader)
+        steps = workflow['jobs']['sonarcloud']['steps']
+        combine = next(step for step in steps if step.get('name') == 'Combine shard coverage')
+        self.assertIn('rustc-release.txt', combine['run'] + ' '.join(
+            step.get('run', '') for step in steps))
+        self.assertIn("select(.\"build-platform\" == \"target\")", combine['run'])
+        self.assertNotIn('-executable', combine['run'])
+        build = workflow['jobs']['build']['steps']
+        self.assertTrue(any('rustc-release.txt' in step.get('with', {}).get('path', '')
+                            for step in build))
+
     def test_scan_fails_when_a_prerequisite_job_failed(self):
         workflow = yaml.load(
             (ROOT / '.github/workflows/sonarcloud.yml').read_text(), Loader=yaml.BaseLoader)
