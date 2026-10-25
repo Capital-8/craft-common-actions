@@ -84,7 +84,7 @@ class SonarCloudTests(unittest.TestCase):
         self.assertIn('--output-path lcov.info', coverage['run'])
         self.assertEqual(coverage['continue-on-error'], 'true')
 
-    def test_sharding_is_opt_in_and_keeps_the_unsharded_path(self):
+    def test_sharding_defaults_to_four_and_keeps_the_unsharded_path(self):
         workflow = yaml.load(
             (ROOT / '.github/workflows/sonarcloud.yml').read_text(), Loader=yaml.BaseLoader)
         shards = workflow['on']['workflow_call']['inputs']['shards']
@@ -93,7 +93,26 @@ class SonarCloudTests(unittest.TestCase):
         self.assertIn('inputs.shards <= 1', coverage['if'])
         self.assertEqual(workflow['jobs']['plan']['if'], 'inputs.shards > 1')
         self.assertEqual(workflow['jobs']['coverage']['strategy']['fail-fast'], 'false')
-        self.assertIn('--partition count:', workflow['jobs']['coverage']['steps'][-2]['run'])
+
+    def test_shards_run_partitions_of_one_prebuilt_archive(self):
+        workflow = yaml.load(
+            (ROOT / '.github/workflows/sonarcloud.yml').read_text(), Loader=yaml.BaseLoader)
+        build = workflow['jobs']['build']['steps']
+        self.assertTrue(any('nextest archive --workspace' in step.get('run', '') for step in build))
+        tests = next(step for step in workflow['jobs']['coverage']['steps']
+                     if step.get('name') == "Run this shard's tests")
+        self.assertIn('--partition count:${{ matrix.shard }}/${{ inputs.shards }}', tests['run'])
+        self.assertIn('--archive-file archive/nextest-archive.tar.zst', tests['run'])
+        self.assertEqual(workflow['jobs']['coverage']['needs'], ['plan', 'build'])
+
+    def test_scan_fails_when_a_prerequisite_job_failed(self):
+        workflow = yaml.load(
+            (ROOT / '.github/workflows/sonarcloud.yml').read_text(), Loader=yaml.BaseLoader)
+        condition = workflow['jobs']['sonarcloud']['if']
+        for job in ('plan', 'build', 'coverage'):
+            self.assertIn(f'needs.{job}.result', condition)
+        self.assertIn('"success","skipped"', condition)
+        self.assertIn('!cancelled()', condition)
 
     def test_token_availability_still_controls_the_scan(self):
         token_step = next(step for step in self.steps if step.get('id') == 'token')
