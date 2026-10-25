@@ -84,6 +84,20 @@ class SonarCloudTests(unittest.TestCase):
         self.assertIn('--output-path lcov.info', coverage['run'])
         self.assertEqual(coverage['continue-on-error'], 'true')
 
+    def test_coverage_actions_use_immutable_revisions(self):
+        workflow = yaml.load(
+            (ROOT / '.github/workflows/sonarcloud.yml').read_text(), Loader=yaml.BaseLoader)
+        step_groups = [job.get('steps', []) for job in workflow['jobs'].values()]
+        for helper in ('checkout-craft-fonts', 'install-apt-packages'):
+            action = yaml.load(
+                (ROOT / 'actions' / helper / 'action.yml').read_text(), Loader=yaml.BaseLoader)
+            step_groups.append(action['runs']['steps'])
+        for steps in step_groups:
+            for step in steps:
+                if 'uses' in step:
+                    with self.subTest(action=step['uses']):
+                        self.assertRegex(step['uses'], r'^[^@]+@[0-9a-f]{40}$')
+
     def test_archive_build_has_the_same_fonts_as_runtime(self):
         workflow = yaml.load(
             (ROOT / '.github/workflows/sonarcloud.yml').read_text(), Loader=yaml.BaseLoader)
