@@ -143,6 +143,15 @@ class SonarCloudTests(unittest.TestCase):
         self.assertTrue(any('rustc-release.txt' in step.get('with', {}).get('path', '')
                             for step in build))
 
+    def test_shard_masks_only_test_failures(self):
+        workflow = yaml.load(
+            (ROOT / '.github/workflows/sonarcloud.yml').read_text(), Loader=yaml.BaseLoader)
+        tests = next(step for step in workflow['jobs']['coverage']['steps']
+                     if step.get('name') == "Run this shard's tests")
+        self.assertNotIn('continue-on-error', tests)
+        self.assertIn('-ne 100', tests['run'])
+        self.assertIn('no coverage profiles', tests['run'])
+
     def test_scan_fails_when_a_prerequisite_job_failed(self):
         workflow = yaml.load(
             (ROOT / '.github/workflows/sonarcloud.yml').read_text(), Loader=yaml.BaseLoader)
