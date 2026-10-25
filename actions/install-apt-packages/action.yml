@@ -22,7 +22,7 @@ runs:
         set -euo pipefail
         # No globbing: an unquoted token like foo* must not expand to workspace filenames.
         set -f
-        list=$(printf '%s\n' $PACKAGES | sort -u | tr '\n' ' ')
+        list=$(printf -- '%s\n' $PACKAGES | sort -u | tr '\n' ' ')
         # Tokens become apt-get operands: a leading dash would be an option (-o runs commands).
         for pkg in $list; do
           if [[ ! "$pkg" =~ ^[A-Za-z0-9][A-Za-z0-9.+:=~_-]*$ ]]; then
