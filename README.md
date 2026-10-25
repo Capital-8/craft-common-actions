@@ -492,7 +492,12 @@ SonarCloud callers whose instrumented workspace tests exceed the 90-minute
 default can pass `timeout-minutes: 120` under the calling job's `with`. This
 changes the job's time budget without dropping tests or coverage. Pass
 `fonts-ref` at the app's tested craft-fonts commit when its tests need those
-fonts. The scan still needs to finish and pass its quality gate.
+fonts. The pinned fonts are available both when compiling the test archive and
+when running tests; a requested font pin also sets `CRAFT_FONTS_REQUIRED=1`
+so missing embedded fonts fail explicitly. Callers with `scripts/fetch-pdf-test-fonts.py` can also pass
+`pdf-test-fonts: true` to provision their pinned PDF fixtures outside the checkout
+and set `CRAFT_PDF_TEST_FONT_DIR` before archive compilation and either test runner. Fixture provisioning
+failures stop that job and prevent the dependent scan. The scan still needs to finish and pass its quality gate.
 
 Workspaces run their tests as four parallel `cargo nextest` partitions by
 default. One job builds the instrumented test archive; each partition runs from

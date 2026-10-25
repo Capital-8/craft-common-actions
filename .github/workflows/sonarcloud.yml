@@ -13,6 +13,11 @@ on:
         type: string
         required: false
         default: ""
+      pdf-test-fonts:
+        description: "Provision the caller's pinned PDF test fonts with scripts/fetch-pdf-test-fonts.py"
+        type: boolean
+        required: false
+        default: false
       timeout-minutes:
         description: "Maximum job runtime, including coverage generation and the scan"
         type: number
@@ -79,6 +84,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Check out craft-fonts
+        uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
+        with:
+          ref: ${{ inputs.fonts-ref }}
       - name: Free disk space
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
       - name: Install Linux build dependencies
@@ -98,8 +107,16 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Provision pinned PDF test fonts
+        if: inputs.pdf-test-fonts
+        shell: bash
+        run: |
+          python3 scripts/fetch-pdf-test-fonts.py "$RUNNER_TEMP/craft-pdf-test-fonts"
+          echo "CRAFT_PDF_TEST_FONT_DIR=$RUNNER_TEMP/craft-pdf-test-fonts" >> "$GITHUB_ENV"
       - name: Build instrumented test archive
         env:
+          CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
+          CRAFT_FONTS_REQUIRED: ${{ inputs.fonts-ref != '' && '1' || '' }}
           CARGO_TERM_COLOR: always
           # Coverage comes from instrumentation, not DWARF; debuginfo is most of target/.
           CARGO_PROFILE_DEV_DEBUG: "0"
@@ -150,11 +167,18 @@ jobs:
         with:
           name: nextest-archive
           path: archive
+      - name: Provision pinned PDF test fonts
+        if: inputs.pdf-test-fonts
+        shell: bash
+        run: |
+          python3 scripts/fetch-pdf-test-fonts.py "$RUNNER_TEMP/craft-pdf-test-fonts"
+          echo "CRAFT_PDF_TEST_FONT_DIR=$RUNNER_TEMP/craft-pdf-test-fonts" >> "$GITHUB_ENV"
       - name: Run this shard's tests
         # A red test must not hide the static analysis, so keep going and scan what was measured.
         continue-on-error: true
         env:
           CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
+          CRAFT_FONTS_REQUIRED: ${{ inputs.fonts-ref != '' && '1' || '' }}
           # Each instrumented binary writes its profile here; the scan job merges them.
           LLVM_PROFILE_FILE: ${{ github.workspace }}/profraw/shard-${{ matrix.shard }}-%p-%m.profraw
         run: |
@@ -235,6 +259,12 @@ jobs:
         if: steps.token.outputs.available == 'true' && hashFiles('Cargo.toml') != '' && inputs.shards <= 1
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Provision pinned PDF test fonts
+        if: inputs.pdf-test-fonts && steps.token.outputs.available == 'true' && hashFiles('Cargo.toml') != '' && inputs.shards <= 1
+        shell: bash
+        run: |
+          python3 scripts/fetch-pdf-test-fonts.py "$RUNNER_TEMP/craft-pdf-test-fonts"
+          echo "CRAFT_PDF_TEST_FONT_DIR=$RUNNER_TEMP/craft-pdf-test-fonts" >> "$GITHUB_ENV"
       - name: Generate Rust coverage
         id: coverage
         if: steps.token.outputs.available == 'true' && hashFiles('Cargo.toml') != '' && inputs.shards <= 1
@@ -243,6 +273,7 @@ jobs:
         env:
           CARGO_TERM_COLOR: always
           CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
+          CRAFT_FONTS_REQUIRED: ${{ inputs.fonts-ref != '' && '1' || '' }}
           # Coverage comes from instrumentation, not DWARF; debuginfo is most of target/.
           CARGO_PROFILE_DEV_DEBUG: "0"
         run: >
