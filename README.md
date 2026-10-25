@@ -494,6 +494,13 @@ changes the job's time budget without dropping tests or coverage. Pass
 `fonts-ref` at the app's tested craft-fonts commit when its tests need those
 fonts. The scan still needs to finish and pass its quality gate.
 
+Workspaces run their tests as four parallel `cargo nextest` partitions by
+default. One job builds the instrumented test archive; each partition runs from
+that archive and uploads its profile data, and the scan job merges the profiles
+with the rustup `llvm-profdata` and `llvm-cov` tools. Pass `shards: 1` to keep
+the single `cargo llvm-cov` job. Sharded runs skip doctests, because nextest
+does not run them.
+
 The new limits leave headroom over sampled Craft app job timings; the existing
 FreeBSD and ARM64 limits are retained. Treat these as initial limits, review
 successful cold builds after rollout and lower them when the evidence supports it.
