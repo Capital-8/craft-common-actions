@@ -84,6 +84,17 @@ class SonarCloudTests(unittest.TestCase):
         self.assertIn('--output-path lcov.info', coverage['run'])
         self.assertEqual(coverage['continue-on-error'], 'true')
 
+    def test_sharding_is_opt_in_and_keeps_the_unsharded_path(self):
+        workflow = yaml.load(
+            (ROOT / '.github/workflows/sonarcloud.yml').read_text(), Loader=yaml.BaseLoader)
+        shards = workflow['on']['workflow_call']['inputs']['shards']
+        self.assertEqual(shards['default'], '1')
+        coverage = next(step for step in self.steps if step.get('id') == 'coverage')
+        self.assertIn('inputs.shards <= 1', coverage['if'])
+        self.assertEqual(workflow['jobs']['plan']['if'], 'inputs.shards > 1')
+        self.assertEqual(workflow['jobs']['coverage']['strategy']['fail-fast'], 'false')
+        self.assertIn('--partition count:', workflow['jobs']['coverage']['steps'][-2]['run'])
+
     def test_token_availability_still_controls_the_scan(self):
         token_step = next(step for step in self.steps if step.get('id') == 'token')
         for token, available in (('', 'false'), ('synthetic-token', 'true')):
