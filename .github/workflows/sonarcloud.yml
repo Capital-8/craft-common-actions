@@ -51,8 +51,8 @@ jobs:
           LC_ALL: C
         run: |
           # The scan action splits args; reject characters that could introduce properties.
-          if [[ ! "$PROJECT_KEY" =~ ^[a-zA-Z0-9_.:-]+$ ]]; then
-            echo "::error::Invalid SonarCloud project key: use only letters, digits, dash, underscore, period or colon."
+          if [[ ! "$PROJECT_KEY" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.:-]*$ || ${#PROJECT_KEY} -gt 400 ]]; then
+            echo "::error::Invalid SonarCloud project key: must start with an alphanumeric character or underscore and contain only letters, digits, dash, underscore, period or colon (max 400 characters)."
             exit 1
           fi
           printf 'key=%s\n' "$PROJECT_KEY" >>"$GITHUB_OUTPUT"

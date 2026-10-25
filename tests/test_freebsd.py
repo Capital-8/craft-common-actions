@@ -398,6 +398,18 @@ fi
                                         text=True, capture_output=True, timeout=15)
                 self.assertEqual(result.returncode, code, result)
 
+    def test_freebsd_workflow_rejects_unsupported_architectures_before_the_vm(self):
+        workflow = yaml.load((ROOT / ".github/workflows/freebsd.yml").read_text(), Loader=yaml.BaseLoader)
+        steps = workflow["jobs"]["freebsd"]["steps"]
+        check = next(step for step in steps if step.get("name") == "Validate the architecture")
+        self.assertEqual(check["env"]["ARCH"], "${{ matrix.arch }}")
+        for arch, code in (("x86_64", 0), ("aarch64", 0), ("riscv64", 1), ("amd64", 1), ("", 1),
+                           ("x86_64; id", 1), ("`touch injected`", 1)):
+            with self.subTest(arch=arch):
+                result = subprocess.run(["bash", "-e", "-c", check["run"]], env={**os.environ, "ARCH": arch},
+                                        text=True, capture_output=True, timeout=15)
+                self.assertEqual(result.returncode, code, result)
+
     def vm_steps(self):
         release = yaml.load((ROOT / ".github/workflows/release.yml").read_text(), Loader=yaml.BaseLoader)
         for name, job in (("freebsd.yml", DATA["jobs"]["freebsd"]), ("release.yml", release["jobs"]["freebsd"])):
