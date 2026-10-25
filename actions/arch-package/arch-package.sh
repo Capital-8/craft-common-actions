@@ -161,10 +161,13 @@ for part in "${parts[@]}"; do
   part="$(echo "$part" | xargs)"
   [[ -n "$part" ]] || die "empty license component in '$license'"
   [[ "$part" =~ ^[A-Za-z0-9.+-]+$ ]] || die "invalid license identifier: '$part'"
-  license_formatted+=("$(printf '%q' "$part")")
+  license_formatted+=("$part")
 done
 [[ "${#license_formatted[@]}" -gt 0 ]] || die "empty license expression"
-license_str="${license_formatted[*]}"
+
+# Preserve full SPDX expression (e.g. "MIT OR Apache-2.0") as a single shell-quoted array element
+license_expr="$(sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s/[[:space:]]+/ /g' <<< "$license")"
+license_str="$(printf '%q' "$license_expr")"
 
 # Create makepkg.conf override
 cat > "$work/makepkg.conf" <<EOF
@@ -235,7 +238,7 @@ package() {
     *) echo "error: refusing license directory resolving outside pkgdir: \$lic_real" >&2; return 1 ;;
   esac
   if [ -d "\$pkgdir/usr/share/doc" ]; then
-    find "\$pkgdir/usr/share/doc" -maxdepth 2 -type f \( -iname "*license*" -o -iname "*notice*" -o -iname "*copying*" \) -exec cp -P -t "\$lic_dir" {} + 2>/dev/null || true
+    find "\$pkgdir/usr/share/doc" -maxdepth 2 -type f \( -iname "*license*" -o -iname "*notice*" -o -iname "*copying*" \) -exec cp --remove-destination -P -t "\$lic_dir" {} + 2>/dev/null || true
   fi
 }
 EOF

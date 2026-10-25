@@ -204,7 +204,10 @@ exit 0
             self.assertIn("pkgver=1.2.3", pkgbuild)
             self.assertIn("pkgrel=2", pkgbuild)
             self.assertIn("arch=(x86_64)", pkgbuild)
-            self.assertIn("license=(MIT Apache-2.0)", pkgbuild)
+            self.assertTrue(
+                "license=(MIT\\ OR\\ Apache-2.0)" in pkgbuild or "license=('MIT OR Apache-2.0')" in pkgbuild,
+                f"Expected preserved SPDX expression in pkgbuild: {pkgbuild}",
+            )
             self.assertIn("provides=(myapp=1.2.3-2)", pkgbuild)
 
     def test_package_function_rejects_symlinked_license_dir(self):
