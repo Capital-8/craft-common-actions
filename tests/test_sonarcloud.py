@@ -44,12 +44,14 @@ class SonarCloudTests(unittest.TestCase):
 
     def test_invalid_keys_cannot_publish_scanner_arguments(self):
         for key in (
-            '', 'key -Dsonar.host.url=https://attacker.invalid',
+            '', '-Dsonar.host.url=https://attacker.invalid',
+            '-leading-dash', 'key -Dsonar.host.url=https://attacker.invalid',
             'key\t-Dsonar.host.url=https://attacker.invalid',
             'key\n-Dsonar.host.url=https://attacker.invalid',
             'key\r\nkey=other', 'key" -Dsonar.host.url="https://attacker.invalid',
             "key' -Dsonar.host.url='https://attacker.invalid",
             'key\\ value', '$(touch injected)', '`touch injected`', 'key/other',
+            'a' * 401,
         ):
             with self.subTest(key=key):
                 result, output = self.run_step(self.validation, PROJECT_KEY=key)
