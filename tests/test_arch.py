@@ -70,6 +70,178 @@ class ArchActionTests(unittest.TestCase):
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("not found", res.stderr)
 
+    def _create_fixture_tarball(self, tmp_path, filename="myapp-1.2.3-linux-x86_64.tar.gz",
+                                app_name="myapp", desktop_name=None):
+        tar_root = tmp_path / "stage_src"
+        (tar_root / "bin").mkdir(parents=True, exist_ok=True)
+        (tar_root / "share/applications").mkdir(parents=True, exist_ok=True)
+        (tar_root / f"bin/{app_name}").write_text("#!/bin/sh\necho hello\n")
+        os.chmod(tar_root / f"bin/{app_name}", 0o755)
+        desktop = desktop_name or f"ai.storyteller.{app_name}.desktop"
+        (tar_root / f"share/applications/{desktop}").write_text(
+            f"[Desktop Entry]\nName={app_name}\nExec={app_name}\nType=Application\n"
+        )
+        tarball = tmp_path / filename
+        with tarfile.open(tarball, "w:gz") as tar:
+            for item in tar_root.iterdir():
+                tar.add(item, arcname=item.name)
+        return tarball
+
+    def _setup_mock_tools(self, tmp_path, makepkg_body=None):
+        tools = tmp_path / "tools"
+        tools.mkdir(parents=True, exist_ok=True)
+        for tool in ("bsdtar", "zstd", "tar"):
+            t = tools / tool
+            t.write_text("#!/bin/sh\nexit 0\n")
+            t.chmod(0o755)
+        mp = tools / "makepkg"
+        body = makepkg_body or """#!/bin/bash
+# Mock makepkg: copies generated PKGBUILD and makepkg.conf to output, creates dummy package
+cp PKGBUILD "$MOCK_CAPTURE/PKGBUILD"
+cp makepkg.conf "$MOCK_CAPTURE/makepkg.conf"
+touch "myapp-1.2.3-1-x86_64.pkg.tar.zst"
+exit 0
+"""
+        mp.write_text(body)
+        mp.chmod(0o755)
+        return tools
+
+    def test_unsupported_architecture_rejected(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            tarball = self._create_fixture_tarball(tmp_path)
+            tools = self._setup_mock_tools(tmp_path)
+            for bad_arch in ("armv7l", "i686", "x86_64; bad", "$(touch injected)", "mips"):
+                with self.subTest(arch=bad_arch):
+                    res = subprocess.run(
+                        [str(ARCH_SCRIPT), str(tarball), bad_arch, str(tmp_path / "out")],
+                        capture_output=True,
+                        text=True,
+                        env={**os.environ, "PATH": f"{tools}:{os.environ['PATH']}"},
+                    )
+                    self.assertNotEqual(res.returncode, 0)
+                    self.assertIn("unsupported architecture", res.stderr)
+
+    def test_invalid_version_rejected(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            tools = self._setup_mock_tools(tmp_path)
+            for bad_ver in ("1.2.3;id", "1.2.3'injection", "1.2.3`touch injected`"):
+                tarball = self._create_fixture_tarball(tmp_path, filename=f"myapp-{bad_ver}-linux-x86_64.tar.gz")
+                res = subprocess.run(
+                    [str(ARCH_SCRIPT), str(tarball), "x86_64", str(tmp_path / "out")],
+                    capture_output=True,
+                    text=True,
+                    env={**os.environ, "PATH": f"{tools}:{os.environ['PATH']}"},
+                )
+                self.assertNotEqual(res.returncode, 0)
+                self.assertIn("invalid version", res.stderr)
+
+    def test_invalid_pkgrel_rejected(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            tarball = self._create_fixture_tarball(tmp_path)
+            tools = self._setup_mock_tools(tmp_path)
+            for bad_rel in ("0", "01", "-1", "1;bad", "1.0.1", "rel"):
+                with self.subTest(pkgrel=bad_rel):
+                    res = subprocess.run(
+                        [str(ARCH_SCRIPT), str(tarball), "x86_64", str(tmp_path / "out")],
+                        capture_output=True,
+                        text=True,
+                        env={**os.environ, "PATH": f"{tools}:{os.environ['PATH']}", "PKGREL": bad_rel},
+                    )
+                    self.assertNotEqual(res.returncode, 0)
+                    self.assertIn("invalid PKGREL", res.stderr)
+
+    def test_invalid_license_rejected(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            tarball = self._create_fixture_tarball(tmp_path)
+            tools = self._setup_mock_tools(tmp_path)
+            for bad_lic in ("MIT OR ", "MIT; touch injected", "MIT | id", "MIT OR (Apache-2.0)"):
+                with self.subTest(license=bad_lic):
+                    res = subprocess.run(
+                        [str(ARCH_SCRIPT), str(tarball), "x86_64", str(tmp_path / "out")],
+                        capture_output=True,
+                        text=True,
+                        env={**os.environ, "PATH": f"{tools}:{os.environ['PATH']}", "ARCH_LICENSE": bad_lic},
+                    )
+                    self.assertNotEqual(res.returncode, 0)
+                    self.assertTrue(any(msg in res.stderr for msg in (
+                        "invalid license identifier", "empty license component",
+                        "invalid characters in license", "trailing operator in license",
+                        "leading operator in license"
+                    )), f"Unexpected stderr: {res.stderr}")
+
+    def test_pkgbuild_and_makepkg_conf_safe_serialization(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            tarball = self._create_fixture_tarball(tmp_path)
+            tools = self._setup_mock_tools(tmp_path)
+            capture = tmp_path / "capture"
+            capture.mkdir()
+            res = subprocess.run(
+                [str(ARCH_SCRIPT), str(tarball), "x86_64", str(tmp_path / "out")],
+                capture_output=True,
+                text=True,
+                env={
+                    **os.environ,
+                    "PATH": f"{tools}:{os.environ['PATH']}",
+                    "MOCK_CAPTURE": str(capture),
+                    "ARCH_LICENSE": "MIT OR Apache-2.0",
+                    "PKGREL": "2",
+                },
+            )
+            self.assertEqual(res.returncode, 0, f"{res.stderr}\n{res.stdout}")
+            pkgbuild = (capture / "PKGBUILD").read_text()
+            makepkg_conf = (capture / "makepkg.conf").read_text()
+
+            # Check safe assignments in makepkg.conf
+            self.assertIn("CARCH=x86_64", makepkg_conf)
+            self.assertIn("CHOST=x86_64-unknown-linux-gnu", makepkg_conf)
+
+            # Check safe assignments in PKGBUILD
+            self.assertIn("pkgver=1.2.3", pkgbuild)
+            self.assertIn("pkgrel=2", pkgbuild)
+            self.assertIn("arch=(x86_64)", pkgbuild)
+            self.assertTrue(
+                "license=(MIT\\ OR\\ Apache-2.0)" in pkgbuild or "license=('MIT OR Apache-2.0')" in pkgbuild,
+                f"Expected preserved SPDX expression in pkgbuild: {pkgbuild}",
+            )
+            self.assertIn("provides=(myapp=1.2.3-2)", pkgbuild)
+
+    def test_package_function_rejects_symlinked_license_dir(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            tarball = self._create_fixture_tarball(tmp_path)
+            # Use mock makepkg that sources PKGBUILD and executes package() with a symlinked lic_dir
+            makepkg_script = """#!/bin/bash
+set -e
+source PKGBUILD
+# Test 1: symlinked licenses directory
+pkgdir="$(mktemp -d /tmp/pkgdir.XXXXXX)"
+trap 'rm -rf "$pkgdir"' EXIT
+mkdir -p "$pkgdir/usr/share"
+mkdir -p /tmp/external_dir
+ln -s /tmp/external_dir "$pkgdir/usr/share/licenses"
+if package; then
+  echo "FAILED: package() succeeded despite symlinked licenses dir"
+  exit 1
+fi
+echo "SUCCESS: package() rejected symlinked licenses dir"
+touch "myapp-1.2.3-1-x86_64.pkg.tar.zst"
+exit 0
+"""
+            tools = self._setup_mock_tools(tmp_path, makepkg_body=makepkg_script)
+            res = subprocess.run(
+                [str(ARCH_SCRIPT), str(tarball), "x86_64", str(tmp_path / "out")],
+                capture_output=True,
+                text=True,
+                env={**os.environ, "PATH": f"{tools}:{os.environ['PATH']}"},
+            )
+            self.assertEqual(res.returncode, 0, f"{res.stderr}\n{res.stdout}")
+            self.assertIn("SUCCESS: package() rejected symlinked licenses dir", res.stdout)
+
     @unittest.skipUnless(
         shutil.which("makepkg") and shutil.which("bsdtar") and shutil.which("zstd"),
         "makepkg/bsdtar/zstd not installed",
