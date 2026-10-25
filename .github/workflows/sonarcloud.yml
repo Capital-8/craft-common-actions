@@ -13,6 +13,11 @@ on:
         type: string
         required: false
         default: ""
+      timeout-minutes:
+        description: "Maximum job runtime, including coverage generation and the scan"
+        type: number
+        required: false
+        default: 60
     secrets:
       SONAR_TOKEN:
         description: "SonarCloud analysis token"
@@ -25,7 +30,7 @@ jobs:
   sonarcloud:
     name: SonarCloud Scan
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
