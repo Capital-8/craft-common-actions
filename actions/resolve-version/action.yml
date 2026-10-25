@@ -32,6 +32,11 @@ runs:
         INPUT_VERSION: ${{ inputs.input-version }}
         APP_TITLE: ${{ inputs.app-title }}
       run: |
+        # Reject newlines or carriage returns upfront to prevent output-file protocol forgery
+        if [[ "$INPUT_VERSION" =~ [$'\r\n'] ]]; then
+          echo "::error::input-version must not contain carriage returns or newlines"
+          exit 1
+        fi
         if [ -f packaging/env.sh ]; then
           . packaging/env.sh
         elif [ -f packaging/common.sh ]; then
@@ -39,17 +44,28 @@ runs:
         fi
         v="$INPUT_VERSION"
         v="${v#v}"
-        v="${v:-$VERSION}"
-        # Whole-string match: grep would accept a multi-line input with one valid line.
+        v="${v:-${VERSION:-}}"
+        if [[ "$v" =~ [$'\r\n'] ]]; then
+          echo "::error::version must not contain carriage returns or newlines"
+          exit 1
+        fi
+        # Whole-string match against semver grammar
         semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
         if [[ ! "$v" =~ $semver ]]; then
           echo "::error::'$v' is not a version like 1.2.3 or 1.2.3-rc.1"
           exit 1
         fi
         case "$v" in *-*) pre=true ;; *) pre=false ;; esac
+        build_date="$(date -u +%Y-%m-%d)"
+        if [[ ! "$build_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+          echo "::error::generated build date '$build_date' is not valid YYYY-MM-DD"
+          exit 1
+        fi
         {
           echo "version=$v"
-          echo "date=$(date -u +%Y-%m-%d)"
+          echo "date=$build_date"
           echo "prerelease=$pre"
         } >>"$GITHUB_OUTPUT"
-        printf '### %s v%s (`%s`)\n' "$APP_TITLE" "$v" "${GITHUB_SHA::9}" >>"$GITHUB_STEP_SUMMARY"
+        clean_title="${APP_TITLE//$'\r'/}"
+        clean_title="${clean_title//$'\n'/ }"
+        printf '### %s v%s (`%s`)\n' "$clean_title" "$v" "${GITHUB_SHA::9}" >>"$GITHUB_STEP_SUMMARY"

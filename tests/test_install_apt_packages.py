@@ -1,6 +1,9 @@
 """The cached apt install action: pinned actions, and PR runs that never write the cache."""
+import os
 from pathlib import Path
 import re
+import subprocess
+import tempfile
 import unittest
 
 import yaml
@@ -32,6 +35,63 @@ class InstallAptPackagesTests(unittest.TestCase):
         self.assertIn("github.event_name == 'push'", condition)
         self.assertIn('github.ref_name == github.event.repository.default_branch', condition)
         self.assertIn("cache-hit != 'true'", condition)
+
+    def test_install_step_uses_option_terminator(self):
+        install_step = next(s for s in steps() if s.get('name') == 'Install packages')
+        self.assertIn('install -y --no-install-recommends -- $PACKAGE_LIST', install_step['run'])
+
+    def _run_key_step(self, packages):
+        key_step = next(s for s in steps() if s.get('id') == 'key')
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_file = Path(tmpdir) / "output"
+            res = subprocess.run(
+                ['bash', '-euo', 'pipefail', '-c', key_step['run']],
+                env={**os.environ, 'PACKAGES': packages, 'GITHUB_OUTPUT': str(out_file)},
+                capture_output=True,
+                text=True,
+            )
+            outputs = {}
+            if out_file.exists():
+                for line in out_file.read_text().splitlines():
+                    if '=' in line:
+                        k, v = line.split('=', 1)
+                        outputs[k] = v
+            return res, outputs
+
+    def test_valid_packages_accepted(self):
+        cases = [
+            ("curl", "curl "),
+            ("curl git build-essential", "build-essential curl git "),
+            ("libx11-dev:amd64 pkg-config=1.8.0-1", "libx11-dev:amd64 pkg-config=1.8.0-1 "),
+            ("curl\ngit\nbuild-essential", "build-essential curl git "),
+        ]
+        for packages, expected_list in cases:
+            with self.subTest(packages=packages):
+                res, outputs = self._run_key_step(packages)
+                self.assertEqual(res.returncode, 0, f"{res.stderr}\n{res.stdout}")
+                self.assertEqual(outputs.get('list'), expected_list)
+
+    def test_invalid_package_names_rejected(self):
+        invalid_cases = [
+            "-o APT::Update=1",
+            "--config",
+            "-y",
+            "../traversal.deb",
+            "/tmp/evil.deb",
+            "curl; touch injected",
+            "curl && touch injected",
+            "curl | touch injected",
+            "$(touch injected)",
+            "`touch injected`",
+            "curl>injected",
+            "",
+            "   \n  \t  ",
+        ]
+        for bad_pkg in invalid_cases:
+            with self.subTest(bad_pkg=bad_pkg):
+                res, _ = self._run_key_step(bad_pkg)
+                self.assertNotEqual(res.returncode, 0)
+                self.assertIn("::error::install-apt-packages:", res.stdout + res.stderr)
 
 
 if __name__ == '__main__':
