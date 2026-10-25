@@ -109,12 +109,23 @@ class SonarCloudTests(unittest.TestCase):
             runner = next(step for step in steps if step.get('name') == runner_name)
             self.assertLess(steps.index(checkout), steps.index(runner))
             self.assertEqual(checkout['with']['ref'], '${{ inputs.fonts-ref }}')
-            self.assertEqual(runner['env']['CRAFT_FONTS_DIR'], '${{ github.workspace }}/craft-fonts')
+            self.assertNotIn('CRAFT_FONTS_DIR', runner['env'])
             self.assertNotIn('CRAFT_FONTS_REQUIRED', runner['env'])
             required = next(step for step in steps if step.get('name') == 'Require requested craft-fonts')
             self.assertLess(steps.index(required), steps.index(runner))
             self.assertTrue(required['if'].startswith("inputs.fonts-ref != ''"))
-            self.assertEqual(required['run'], 'echo "CRAFT_FONTS_REQUIRED=1" >> "$GITHUB_ENV"')
+            self.assertEqual(required['env']['CRAFT_FONTS_PATH'], '${{ github.workspace }}/craft-fonts')
+            with tempfile.TemporaryDirectory(prefix='font setup ') as temp:
+                output = Path(temp) / 'github env'
+                font_dir = Path(temp) / 'craft fonts'
+                font_dir.mkdir()
+                result = subprocess.run(
+                    ['bash', '-e', '-o', 'pipefail', '-c', required['run']],
+                    env={**os.environ, 'CRAFT_FONTS_PATH': str(font_dir), 'GITHUB_ENV': str(output)},
+                    capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(output.read_text(),
+                                 f'CRAFT_FONTS_DIR={font_dir}\nCRAFT_FONTS_REQUIRED=1\n')
 
     def test_pdf_fixture_setup_runs_before_both_test_runners(self):
         workflow = yaml.load(
