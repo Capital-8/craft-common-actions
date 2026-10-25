@@ -69,6 +69,16 @@ class ResolveVersionTests(unittest.TestCase):
                 self.assertRegex(outputs.get('date', ''), r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
                 self.assertIn(f"v{expected_ver}", summary)
 
+    def test_app_title_crlf_stripped_from_summary(self):
+        res, outputs, summary = self._run_action(
+            input_version="1.2.3",
+            app_title="My\r\nApp\nTitle",
+        )
+        self.assertEqual(res.returncode, 0, f"{res.stderr}\n{res.stdout}")
+        self.assertNotIn("\r", summary)
+        self.assertEqual(summary.count("\n"), 1)
+        self.assertIn("My App Title", summary)
+
     def test_fallback_to_version_env_and_env_sh(self):
         res, outputs, _ = self._run_action(version_env="3.4.5")
         self.assertEqual(res.returncode, 0)
