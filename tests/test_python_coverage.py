@@ -63,7 +63,7 @@ else:
         self.assertEqual(result.returncode, 0, result.stderr)
         run = next(args for args in calls if args[:3] == ['-m', 'coverage', 'run'])
         self.assertEqual(run[-1], script)
-        self.assertIn('--omit=' + script, run)
+        self.assertEqual(len([arg for arg in run if arg.startswith('--rcfile=')]), 1)
 
     def test_failed_tests_still_generate_report_but_fail_job(self):
         result, calls, _ = self.run_coverage(test_status=7)
@@ -97,9 +97,11 @@ else:
         self.assertEqual(result.returncode, 0, result.stderr)
         run = next(args for args in calls if args[:3] == ['-m', 'coverage', 'run'])
         report = next(args for args in calls if args[:3] == ['-m', 'coverage', 'xml'])
-        self.assertIn('--source=' + str(Path(script).parent), run)
-        self.assertIn('--rcfile=/dev/null', run)
-        self.assertEqual(report, ['-m', 'coverage', 'xml', '--rcfile=/dev/null', '-o', 'python-coverage.xml'])
+        config = next(arg for arg in run if arg.startswith('--rcfile='))
+        self.assertNotEqual(config, '--rcfile=/dev/null')
+        self.assertEqual(report, ['-m', 'coverage', 'xml', config, '-o', 'python-coverage.xml'])
+        self.assertIn('source = ${PYTHON_COVERAGE_SOURCE_REAL}', self.step['run'])
+        self.assertIn('omit = ${PYTHON_COVERAGE_SCRIPT_REAL}', self.step['run'])
 
     def test_failure_is_not_suppressed_and_step_precedes_scan(self):
         self.assertNotIn('continue-on-error', self.step)
