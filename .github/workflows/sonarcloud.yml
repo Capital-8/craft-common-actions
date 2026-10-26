@@ -95,7 +95,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Check out craft-fonts
-        uses: storytold/craft-common-actions/actions/checkout-craft-fonts@395270d2c0bd48ce1b71ae127f2a54e435fc1b42
+        uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
         with:
           ref: ${{ inputs.fonts-ref }}
       - name: Require requested craft-fonts
@@ -109,7 +109,7 @@ jobs:
       - name: Free disk space
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
       - name: Install Linux build dependencies
-        uses: storytold/craft-common-actions/actions/install-apt-packages@395270d2c0bd48ce1b71ae127f2a54e435fc1b42
+        uses: storytold/craft-common-actions/actions/install-apt-packages@main
         with:
           packages: >-
             pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev
@@ -166,7 +166,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Check out craft-fonts
-        uses: storytold/craft-common-actions/actions/checkout-craft-fonts@395270d2c0bd48ce1b71ae127f2a54e435fc1b42
+        uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
         with:
           ref: ${{ inputs.fonts-ref }}
       - name: Require requested craft-fonts
@@ -178,7 +178,7 @@ jobs:
           echo "CRAFT_FONTS_DIR=$CRAFT_FONTS_PATH" >> "$GITHUB_ENV"
           echo "CRAFT_FONTS_REQUIRED=1" >> "$GITHUB_ENV"
       - name: Install Linux build dependencies
-        uses: storytold/craft-common-actions/actions/install-apt-packages@395270d2c0bd48ce1b71ae127f2a54e435fc1b42
+        uses: storytold/craft-common-actions/actions/install-apt-packages@main
         with:
           packages: >-
             pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev
@@ -253,7 +253,7 @@ jobs:
           printf 'key=%s\n' "$PROJECT_KEY" >>"$GITHUB_OUTPUT"
       - name: Check out craft-fonts
         if: steps.token.outputs.available == 'true' && inputs.shards <= 1
-        uses: storytold/craft-common-actions/actions/checkout-craft-fonts@395270d2c0bd48ce1b71ae127f2a54e435fc1b42
+        uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
         with:
           ref: ${{ inputs.fonts-ref }}
       - name: Require requested craft-fonts
@@ -270,7 +270,7 @@ jobs:
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
       - name: Install Linux build dependencies
         if: steps.token.outputs.available == 'true' && hashFiles('Cargo.toml') != '' && inputs.shards <= 1
-        uses: storytold/craft-common-actions/actions/install-apt-packages@395270d2c0bd48ce1b71ae127f2a54e435fc1b42
+        uses: storytold/craft-common-actions/actions/install-apt-packages@main
         with:
           packages: >-
             pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev

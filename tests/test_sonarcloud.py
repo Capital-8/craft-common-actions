@@ -84,7 +84,7 @@ class SonarCloudTests(unittest.TestCase):
         self.assertIn('--output-path lcov.info', coverage['run'])
         self.assertEqual(coverage['continue-on-error'], 'true')
 
-    def test_coverage_actions_use_immutable_revisions(self):
+    def test_coverage_actions_track_main_and_pin_external_actions(self):
         workflow = yaml.load(
             (ROOT / '.github/workflows/sonarcloud.yml').read_text(), Loader=yaml.BaseLoader)
         step_groups = [job.get('steps', []) for job in workflow['jobs'].values()]
@@ -96,7 +96,10 @@ class SonarCloudTests(unittest.TestCase):
             for step in steps:
                 if 'uses' in step:
                     with self.subTest(action=step['uses']):
-                        self.assertRegex(step['uses'], r'^[^@]+@[0-9a-f]{40}$')
+                        if step['uses'].startswith('storytold/craft-common-actions/'):
+                            self.assertTrue(step['uses'].endswith('@main'))
+                        else:
+                            self.assertRegex(step['uses'], r'^[^@]+@[0-9a-f]{40}$')
 
     def test_archive_build_has_the_same_fonts_as_runtime(self):
         workflow = yaml.load(
