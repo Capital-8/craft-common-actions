@@ -340,7 +340,7 @@ The quality gate for an app's pull requests and pushes to main. It runs `command
   persisted credentials, and craft-i18n when the app has `craft-i18n.rev`;
 - `packages` installed through `actions/install-apt-packages` on Linux legs;
 - the channel from `rust-toolchain.toml`, or `toolchain`, with clippy, rustfmt and `targets`;
-- prebuilt cargo tools from `tools` (by default `cargo-nextest`);
+- prebuilt cargo tools from `tools` (by default `cargo-nextest@0.9.150`);
 - `CARGO_PROFILE_DEV_DEBUG=line-tables-only` (set `dev-debug: ""` to keep the repository's
   profile) and the caller's `env`, `linux-env` and `windows-env` lines, each `KEY=VALUE`;
 - a rust-cache dependency cache that only the default branch saves, so pull requests restore
@@ -382,6 +382,21 @@ jobs:
 
 Concurrency belongs to the caller: a reusable workflow cannot set it for the run.
 
+The gate default and sharded SonarCloud coverage pin cargo-nextest to **0.9.150**, which fixes
+[GHSA-vc25-qg58-w57c](https://github.com/nextest-rs/nextest/security/advisories/GHSA-vc25-qg58-w57c).
+A caller overriding `tools` must also update its own nextest pin; changing the shared default
+cannot override it. Set a required minimum at the top of the caller's `.config/nextest.toml`,
+keeping its existing profiles and test groups:
+
+```toml
+nextest-version = "0.9.150"
+```
+
+A `recommended` minimum only warns; it does not enforce this requirement. The minimum-version
+check does not upgrade a developer's installed executable, and can be explicitly overridden.
+Do not enable experimental run recording or rerun untrusted portable recordings with an
+affected version. Ordinary compiled test archives used by coverage are a different feature.
+
 An app that also checks Windows on main, on manual runs and on pull requests labelled `full-ci`,
 with per-OS environment and a shorter Windows gate (PDFCraft's call):
 
@@ -395,7 +410,7 @@ jobs:
       packages: >-
         libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev
         libgtk-3-dev qpdf poppler-utils
-      tools: cargo-nextest@0.9.149,cargo-deny@0.20.2
+      tools: cargo-nextest@0.9.150,cargo-deny@0.20.2
       linux-env: PDFCRAFT_ORACLES_REQUIRED=1
       windows-env: PDFCRAFT_REQUIRE_WINRES=1
       # Windows checks what differs by platform: the build (with resources) and the tests.

@@ -47,10 +47,10 @@ on:
         required: false
         default: "wasm32-unknown-unknown"
       tools:
-        description: "Prebuilt cargo tools from taiki-e/install-action, comma-separated, each with its version (e.g. cargo-nextest@0.9.149,cargo-deny@0.20.2); empty installs none"
+        description: "Prebuilt cargo tools from taiki-e/install-action, comma-separated, each with its version (e.g. cargo-nextest@0.9.150,cargo-deny@0.20.2); empty installs none"
         type: string
         required: false
-        default: "cargo-nextest@0.9.149"
+        default: "cargo-nextest@0.9.150"
       env:
         description: "KEY=VALUE lines added to the environment of every leg before the cache is restored"
         type: string
