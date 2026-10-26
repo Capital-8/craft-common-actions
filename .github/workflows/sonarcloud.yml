@@ -309,3 +309,4 @@ jobs:
             "-Dsonar.projectKey=${{ steps.project.outputs.key }}"
             -Dsonar.organization=storytold
             -Dsonar.rust.lcov.reportPaths=lcov.info
+            "-Dsonar.cpd.exclusions=**/i18n/**"
