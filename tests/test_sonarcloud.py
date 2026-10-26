@@ -74,7 +74,7 @@ class SonarCloudTests(unittest.TestCase):
         self.assertEqual(
             self.scan['with']['args'].splitlines()[0],
             '"-Dsonar.projectKey=${{ steps.project.outputs.key }}" -Dsonar.organization=storytold '
-            '-Dsonar.rust.lcov.reportPaths=lcov.info',
+            '-Dsonar.rust.lcov.reportPaths=lcov.info "-Dsonar.cpd.exclusions=**/i18n/**"',
         )
 
     def test_coverage_is_generated_before_the_scan_imports_it(self):
