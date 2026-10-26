@@ -499,6 +499,18 @@ so missing embedded fonts fail explicitly. Callers with `scripts/fetch-pdf-test-
 and set `CRAFT_PDF_TEST_FONT_DIR` before archive compilation and either test runner. Fixture provisioning
 failures stop that job and prevent the dependent scan. The scan still needs to finish and pass its quality gate.
 
+Callers with Python tooling can pass both `python-coverage-source` (a source directory)
+and `python-coverage-script` (the test script). The scan job runs that script under
+pinned coverage.py in an isolated virtual environment and writes `python-coverage.xml`.
+Both paths must be inside the checkout and contain no commas or glob characters.
+The environment contains only coverage.py and the runner’s Python standard library;
+caller coverage configuration is ignored so parallel-data settings cannot hide the report.
+Set `sonar.python.coverage.reportPaths=python-coverage.xml` in the caller's Sonar
+configuration and classify its test files as tests. The script runs in full, but
+is omitted from the production coverage report. Missing inputs, failed tests or
+report generation stop the job; empty inputs leave existing callers unchanged.
+This step requires the Sonar token, so token-independent CI should also run the tests.
+
 Workspaces run their tests as four parallel `cargo nextest` partitions by
 default. One job builds the instrumented test archive; each partition runs from
 that archive and uploads its profile data, and the scan job merges the profiles
