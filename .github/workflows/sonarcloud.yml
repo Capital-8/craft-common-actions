@@ -282,13 +282,16 @@ jobs:
           set -euo pipefail
           toolchain="$(cat archive/rustc-release.txt)"
           llvm_bin="$(rustup run "$toolchain" rustc --print sysroot)/lib/rustlib/$(rustup run "$toolchain" rustc -vV | sed -n 's/^host: //p')/bin"
-          mkdir -p coverage-archive
-          tar --zstd -xf archive/nextest-archive.tar.zst -C coverage-archive
+          # Unpack outside the checkout: the scanner analyses everything under the workspace, and build
+          # output (generated sources) there would be counted as duplicated code.
+          extracted="$RUNNER_TEMP/coverage-archive"
+          mkdir -p "$extracted"
+          tar --zstd -xf archive/nextest-archive.tar.zst -C "$extracted"
           # Only test binaries run on the target; helpers and proc-macros are not instrumented profile sources.
           objects=()
           while IFS= read -r name; do
-            while IFS= read -r -d '' file; do objects+=("$file"); done < <(find coverage-archive -type f -name "$name" -print0)
-          done < <(jq -r '."rust-binaries"[] | select(."build-platform" == "target") | ."binary-path" | split("/") | last' coverage-archive/target/nextest/binaries-metadata.json)
+            while IFS= read -r -d '' file; do objects+=("$file"); done < <(find "$extracted" -type f -name "$name" -print0)
+          done < <(jq -r '."rust-binaries"[] | select(."build-platform" == "target") | ."binary-path" | split("/") | last' "$extracted/target/nextest/binaries-metadata.json")
           if [ "${#objects[@]}" -eq 0 ]; then
             echo "::error::No test binaries found in the archive metadata"
             exit 1
