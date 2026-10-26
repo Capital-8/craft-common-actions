@@ -535,3 +535,7 @@ The tests execute the FreeBSD run template under the host's POSIX shell with
 fixture build/test commands and real tar archives. They cover failures in each
 custom test group, default build/test failures, missing/corrupt packages and font
 environment propagation. They do not replace native FreeBSD caller runs.
+
+## Shared Flatpak source generation
+
+[The Flatpak generator](scripts/flatpak/README.md) produces offline Cargo inventories for any app. Apps retain their manifests and generated dependency inventories; shared tests cover checksum verification, source patches, atomic replacement and cancellation.

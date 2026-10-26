@@ -12,6 +12,7 @@ on:
       - .github/workflows/test-freebsd.yml
       - actions/install-apt-packages/**
       - tests/**
+      - scripts/flatpak/**
   push:
     branches: [main]
     paths:
@@ -24,6 +25,7 @@ on:
       - .github/workflows/test-freebsd.yml
       - actions/install-apt-packages/**
       - tests/**
+      - scripts/flatpak/**
   workflow_dispatch:
 
 permissions:
