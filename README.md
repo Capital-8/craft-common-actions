@@ -492,7 +492,24 @@ SonarCloud callers whose instrumented workspace tests exceed the 90-minute
 default can pass `timeout-minutes: 120` under the calling job's `with`. This
 changes the job's time budget without dropping tests or coverage. Pass
 `fonts-ref` at the app's tested craft-fonts commit when its tests need those
-fonts. The scan still needs to finish and pass its quality gate.
+fonts. The pinned fonts are available both when compiling the test archive and
+when running tests; a requested font pin also sets `CRAFT_FONTS_REQUIRED=1`
+so missing embedded fonts fail explicitly. Callers with `scripts/fetch-pdf-test-fonts.py` can also pass
+`pdf-test-fonts: true` to provision their pinned PDF fixtures outside the checkout
+and set `CRAFT_PDF_TEST_FONT_DIR` before archive compilation and either test runner. Fixture provisioning
+failures stop that job and prevent the dependent scan. The scan still needs to finish and pass its quality gate.
+
+Callers with Python tooling can pass both `python-coverage-source` (a source directory)
+and `python-coverage-script` (the test script). The scan job runs that script under
+pinned coverage.py in an isolated virtual environment and writes `python-coverage.xml`.
+Both paths must be inside the checkout and contain no commas or glob characters.
+The environment contains only coverage.py and the runner’s Python standard library;
+caller coverage configuration is ignored so parallel-data settings cannot hide the report.
+Set `sonar.python.coverage.reportPaths=python-coverage.xml` in the caller's Sonar
+configuration and classify its test files as tests. The script runs in full, but
+is omitted from the production coverage report. Missing inputs, failed tests or
+report generation stop the job; empty inputs leave existing callers unchanged.
+This step requires the Sonar token, so token-independent CI should also run the tests.
 
 Workspaces run their tests as four parallel `cargo nextest` partitions by
 default. One job builds the instrumented test archive; each partition runs from
