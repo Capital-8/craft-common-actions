@@ -352,9 +352,12 @@ The quality gate for an app's pull requests and pushes to main. It runs `command
 - prebuilt cargo tools from `tools` (by default `cargo-nextest@0.9.150`);
 - `CARGO_PROFILE_DEV_DEBUG=line-tables-only` (set `dev-debug: ""` to keep the repository's
   profile) and the caller's `env`, `linux-env` and `windows-env` lines, each `KEY=VALUE`;
-- a rust-cache dependency cache that only the default branch saves, so pull requests restore
-  main's entry and never evict it. The key includes the root `Cargo.toml`, since rust-cache hashes
-  only the members' manifests. Bump `cache-version` to start afresh.
+- a rust-cache dependency cache saved by the default branch by default. Pull requests only
+  restore caches; callers may opt manual branch runs into branch-scoped writes with
+  `cache-save-on-dispatch: true`. The restore prefix includes the canonical root `[profile]`
+  table; dependency, version and comment edits do not discard reusable dependency artifacts.
+  rust-cache still keys on lockfiles, member manifests, toolchain and build environment, and
+  Cargo validates restored fingerprints. Bump `cache-version` to start afresh.
 
 After the gate, the job fails if `Cargo.lock` changed. Legs run with `fail-fast: false`; each has
 `timeout-minutes` (default 60). Jobs only some apps need, such as fuzzing or web builds, stay in
@@ -559,3 +562,17 @@ The tests execute the FreeBSD run template under the host's POSIX shell with
 fixture build/test commands and real tar archives. They cover failures in each
 custom test group, default build/test failures, missing/corrupt packages and font
 environment propagation. They do not replace native FreeBSD caller runs.
+
+### Gate cache reuse
+
+The gate cache key includes the canonical root `[profile]` table, including per-package
+profile overrides. Dependency and version edits no longer change the restore prefix;
+`rust-cache` still keys on the lockfile, toolchain, environment and member manifests,
+and Cargo validates restored fingerprints. The first run after adopting this key
+is cold.
+
+Only the default branch saves by default. A caller may set
+`cache-save-on-dispatch: true` for repeated manual integration testing. This permits
+`workflow_dispatch` runs to save a cache scoped by GitHub to that branch, never a
+pull-request run. Use this selectively to avoid storage churn; sibling branches cannot
+restore each other's caches. Do not pass the input until this workflow change has landed.
